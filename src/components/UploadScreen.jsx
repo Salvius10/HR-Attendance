@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { parseSwipeFile, parseMappingFile } from '../lib/parseWorkbooks.js'
+import { parseSwipeFile, parseMappingFile, parseEmployeeListFile } from '../lib/parseWorkbooks.js'
 
 function Dropzone({ title, required, hint, icon, status, onFile, secondary }) {
   const inputRef = useRef(null)
@@ -46,9 +46,16 @@ const CardIcon = (
   </svg>
 )
 
-export default function UploadScreen({ mapping, hasData, onSwipeParsed, onMappingParsed, onBack }) {
+export const MailIcon = (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-10 6L2 7" />
+  </svg>
+)
+
+export default function UploadScreen({ mapping, employeeList, hasData, onSwipeParsed, onMappingParsed, onEmployeeListParsed, onBack }) {
   const [swipeStatus, setSwipeStatus] = useState(null)
   const [mapStatus, setMapStatus] = useState(null)
+  const [empStatus, setEmpStatus] = useState(null)
   const [busy, setBusy] = useState(false)
 
   const handleSwipe = async (file) => {
@@ -76,8 +83,23 @@ export default function UploadScreen({ mapping, hasData, onSwipeParsed, onMappin
     }
   }
 
+  const handleEmployeeList = async (file) => {
+    setEmpStatus(null)
+    try {
+      const data = await parseEmployeeListFile(file)
+      setEmpStatus({ kind: 'ok', text: `✓ ${file.name} — ${data.people.length} employees with emails` })
+      onEmployeeListParsed(data)
+    } catch (err) {
+      setEmpStatus({ kind: 'err', text: err.message })
+    }
+  }
+
   const savedText = mapping
     ? `Using saved mapping · ${mapping.entries.length} cards · ${mapping.fileName}`
+    : null
+
+  const savedEmpText = employeeList
+    ? `Using saved list · ${employeeList.people.length} employees · ${employeeList.fileName}`
     : null
 
   return (
@@ -111,6 +133,14 @@ export default function UploadScreen({ mapping, hasData, onSwipeParsed, onMappin
           hint="Which employee holds which access card. Upload once — it's remembered. Re-upload only when a card changes hands."
           status={mapStatus ?? (savedText ? { kind: 'saved', text: savedText } : null)}
           onFile={handleMapping}
+        />
+        <Dropzone
+          title="Employee emails"
+          secondary
+          icon={MailIcon}
+          hint="The employee list with names and email addresses — used by Draft emails. Upload once — it's remembered."
+          status={empStatus ?? (savedEmpText ? { kind: 'saved', text: savedEmpText } : null)}
+          onFile={handleEmployeeList}
         />
       </div>
 

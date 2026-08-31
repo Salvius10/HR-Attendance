@@ -16,9 +16,28 @@ in the browser — the Excel files are parsed client-side and never leave the ma
   a card changes hands. If a card appears twice, the row with the latest assignment
   date wins.
 
+- **Employee emails** (optional): the employee directory with `Employee Number`,
+  `Full Name` and `Email` columns. Also remembered in the browser after the first
+  upload. Powers the Draft emails feature.
+
 The dashboard shows one row per employee with a month-at-a-glance strip, days present,
 average in/out times, and a **below-threshold filter** (default 12 days, adjustable).
 Clicking a row opens the full day-by-day log with an hours-per-day chart.
+
+## Draft emails
+
+**Draft emails** on the dashboard opens a panel listing every below-threshold employee
+matched to the directory (by Employee ID, falling back to name). Untick anyone you want
+to skip, then edit one shared template — subject and rich-text body — with dynamic
+variables that are filled in per recipient: `{name}`, `{firstName}`, `{daysPresent}`,
+`{threshold}`, `{shortfall}`, `{month}`. The template is remembered between sessions
+and a live preview shows the first recipient's finished email.
+
+Sending goes through a small endpoint inside the Vite dev/preview server
+(`server/mailPlugin.js`) that relays via **Microsoft 365 SMTP** (`smtp.office365.com:587`).
+Enter the from-address password (or app password) in the panel — it is used only for
+that send and never stored. Per-recipient success/failure is shown after sending.
+Note: the mailbox needs SMTP AUTH enabled in Microsoft 365 for this to work.
 
 ## Development
 

@@ -5,13 +5,14 @@ import { buildModel } from './lib/attendance.js'
 
 const MAPPING_KEY = 'hr-attendance.mapping.v1'
 const THRESHOLD_KEY = 'hr-attendance.threshold.v1'
+const EMPLOYEES_KEY = 'hr-attendance.employees.v1'
 
-function loadSavedMapping() {
+function loadSaved(key, listField) {
   try {
-    const raw = localStorage.getItem(MAPPING_KEY)
+    const raw = localStorage.getItem(key)
     if (!raw) return null
     const data = JSON.parse(raw)
-    if (!Array.isArray(data.entries) || data.entries.length === 0) return null
+    if (!Array.isArray(data[listField]) || data[listField].length === 0) return null
     return data
   } catch {
     return null
@@ -20,7 +21,8 @@ function loadSavedMapping() {
 
 export default function App() {
   const [swipeData, setSwipeData] = useState(null)
-  const [mapping, setMapping] = useState(loadSavedMapping)
+  const [mapping, setMapping] = useState(() => loadSaved(MAPPING_KEY, 'entries'))
+  const [employeeList, setEmployeeList] = useState(() => loadSaved(EMPLOYEES_KEY, 'people'))
   const [threshold, setThresholdState] = useState(() => {
     const v = parseInt(localStorage.getItem(THRESHOLD_KEY) ?? '12', 10)
     return Number.isFinite(v) && v > 0 ? v : 12
@@ -56,6 +58,12 @@ export default function App() {
     localStorage.setItem(MAPPING_KEY, JSON.stringify(data))
   }
 
+  const handleEmployeeListParsed = ({ people, fileName }) => {
+    const data = { people, fileName, savedAt: Date.now() }
+    setEmployeeList(data)
+    localStorage.setItem(EMPLOYEES_KEY, JSON.stringify(data))
+  }
+
   const model = useMemo(
     () => (swipeData ? buildModel(swipeData.events, mapping?.entries ?? null) : null),
     [swipeData, mapping]
@@ -65,9 +73,11 @@ export default function App() {
     return (
       <UploadScreen
         mapping={mapping}
+        employeeList={employeeList}
         hasData={!!model}
         onSwipeParsed={handleSwipeParsed}
         onMappingParsed={handleMappingParsed}
+        onEmployeeListParsed={handleEmployeeListParsed}
         onBack={model ? () => setShowUpload(false) : null}
       />
     )
@@ -77,9 +87,11 @@ export default function App() {
     <Dashboard
       model={model}
       mapping={mapping}
+      employeeList={employeeList}
       threshold={threshold}
       setThreshold={setThreshold}
       onMappingParsed={handleMappingParsed}
+      onEmployeeListParsed={handleEmployeeListParsed}
       onNewUpload={() => setShowUpload(true)}
     />
   )

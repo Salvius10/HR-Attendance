@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import { formatMinutesAsTime, formatDuration, formatTime, dayKeyLabel } from '../lib/attendance.js'
 import { parseMappingFile } from '../lib/parseWorkbooks.js'
 import EmployeeDetail from './EmployeeDetail.jsx'
+import DraftEmails from './DraftEmails.jsx'
 
 export function initials(name) {
   const parts = name.trim().split(/\s+/)
@@ -33,7 +34,7 @@ const SearchIcon = (
   </svg>
 )
 
-export default function Dashboard({ model, mapping, threshold, setThreshold, onMappingParsed, onNewUpload }) {
+export default function Dashboard({ model, mapping, employeeList, threshold, setThreshold, onMappingParsed, onEmployeeListParsed, onNewUpload }) {
   const [monthKey, setMonthKey] = useState(model.months[0].key)
   const [query, setQuery] = useState('')
   const [lowOnly, setLowOnly] = useState(false)
@@ -44,6 +45,7 @@ export default function Dashboard({ model, mapping, threshold, setThreshold, onM
     return open ? Number(open) : null
   })
   const [mapError, setMapError] = useState(null)
+  const [showEmails, setShowEmails] = useState(false)
   const mapInputRef = useRef(null)
 
   const month = model.months.find((m) => m.key === monthKey) ?? model.months[0]
@@ -188,6 +190,12 @@ export default function Dashboard({ model, mapping, threshold, setThreshold, onM
           <button className={`filter-chip ${lowOnly ? 'active' : ''}`} onClick={() => setLowOnly(!lowOnly)}>
             Below {threshold} days <span className="count">{belowCount}</span>
           </button>
+          <button className="btn de-open" onClick={() => setShowEmails(true)}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-10 6L2 7" />
+            </svg>
+            Draft emails{belowCount > 0 ? ` (${belowCount})` : ''}
+          </button>
           <span className="threshold-ctl">
             <button onClick={() => setThreshold(threshold - 1)} aria-label="Lower threshold">−</button>
             <b>{threshold}</b>
@@ -251,6 +259,16 @@ export default function Dashboard({ model, mapping, threshold, setThreshold, onM
           <b>last swipe = out</b>. Days with a single swipe show no out-time.
         </p>
       </main>
+
+      {showEmails && (
+        <DraftEmails
+          month={month}
+          threshold={threshold}
+          employeeList={employeeList}
+          onEmployeeListParsed={onEmployeeListParsed}
+          onClose={() => setShowEmails(false)}
+        />
+      )}
 
       {selectedEmp && (
         <EmployeeDetail

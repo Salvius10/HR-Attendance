@@ -132,3 +132,46 @@ export async function parseMappingFile(file) {
   if (entries.length === 0) throw new Error('No card assignments found in the file.')
   return { entries, fileName: file.name }
 }
+
+/**
+ * Parse the employee-directory workbook (name + email per employee).
+ * Returns { people: [{empId, name, email}], fileName }.
+ * Looks for a header row with "Full Name"/"Employee Name" and "Email" columns.
+ */
+export async function parseEmployeeListFile(file) {
+  const wb = await readWorkbook(file)
+  const byEmail = new Map()
+  let found = false
+  for (const sheetName of wb.SheetNames) {
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, raw: true })
+    const header = findHeaderRow(rows, {
+      name: /(full|employee)\s*name/,
+      email: /e-?mail/,
+    })
+    if (!header) continue
+    found = true
+    const cells = rows[header.rowIndex].map((c) => String(c ?? '').toLowerCase().trim())
+    const empIdCol = cells.findIndex((c) => /employee\s*(number|id)|emp\s*(no|id)/.test(c))
+
+    for (let i = header.rowIndex + 1; i < rows.length; i++) {
+      const row = rows[i]
+      if (!row || row.length === 0) continue
+      const name = row[header.cols.name]
+      const email = row[header.cols.email]
+      if (name == null || String(name).trim() === '') continue
+      if (email == null || !String(email).includes('@')) continue
+      const person = {
+        empId: empIdCol !== -1 && row[empIdCol] != null ? String(row[empIdCol]).trim() : null,
+        name: String(name).trim(),
+        email: String(email).trim(),
+      }
+      byEmail.set(person.email.toLowerCase(), person)
+    }
+  }
+  if (!found) {
+    throw new Error('Could not find a sheet with "Full Name" and "Email" columns. Is this the employee list?')
+  }
+  const people = [...byEmail.values()]
+  if (people.length === 0) throw new Error('No rows with an email address found in the file.')
+  return { people, fileName: file.name }
+}

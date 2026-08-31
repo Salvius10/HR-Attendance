@@ -14,6 +14,7 @@
     "vite": "^8.2.2"
   },
   "dependencies": {
+    "nodemailer": "^9.0.6",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "xlsx": "^0.18.5"
