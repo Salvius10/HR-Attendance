@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { formatMinutesAsTime, formatDuration, formatTime, dayKeyLabel } from '../lib/attendance.js'
 import { parseMappingFile } from '../lib/parseWorkbooks.js'
+import { exportMonthWorkbook } from '../lib/exportWorkbook.js'
 import EmployeeDetail from './EmployeeDetail.jsx'
 import DraftEmails from './DraftEmails.jsx'
 
@@ -46,6 +47,7 @@ export default function Dashboard({ model, mapping, employeeList, threshold, set
   })
   const [mapError, setMapError] = useState(null)
   const [showEmails, setShowEmails] = useState(false)
+  const [showUnmapped, setShowUnmapped] = useState(false)
   const mapInputRef = useRef(null)
 
   const month = model.months.find((m) => m.key === monthKey) ?? model.months[0]
@@ -84,7 +86,7 @@ export default function Dashboard({ model, mapping, employeeList, threshold, set
   const toggleSort = (by) =>
     setSort((s) => (s.by === by ? { by, dir: -s.dir } : { by, dir: by === 'days' ? 1 : 1 }))
 
-  const anyUnmapped = month.employees.some((e) => !e.mapped)
+  const unmapped = useMemo(() => month.employees.filter((e) => !e.mapped), [month])
 
   const handleMappingFile = async (file) => {
     try {
@@ -120,6 +122,16 @@ export default function Dashboard({ model, mapping, employeeList, threshold, set
         <button className="btn" onClick={() => mapInputRef.current?.click()}>
           Update mapping{mapping ? ` (${mapping.entries.length})` : ''}
         </button>
+        <button
+          className="btn btn-icon"
+          onClick={() => exportMonthWorkbook(month, threshold)}
+          title={`Download ${month.label} as an Excel workbook`}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 3v12" /><path d="m7 11 5 5 5-5" /><path d="M4 20h16" />
+          </svg>
+          Download Excel
+        </button>
         <button className="btn btn-primary" onClick={onNewUpload}>Upload report</button>
       </header>
 
@@ -146,12 +158,35 @@ export default function Dashboard({ model, mapping, employeeList, threshold, set
             Couldn&apos;t read the mapping file: {mapError}
           </div>
         )}
-        {anyUnmapped && (
+        {unmapped.length > 0 && (
           <div className="banner-warn">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /><path d="M12 9v4M12 17h.01" />
             </svg>
-            Some cards have no employee assigned — upload the card-assignment sheet to see names.
+            <span className="bw-body">
+              <span>
+                {unmapped.length} {unmapped.length === 1 ? 'card has' : 'cards have'} no employee
+                assigned — upload the card-assignment sheet to see names.
+                <button className="bw-link" onClick={() => setShowUnmapped((v) => !v)}>
+                  {showUnmapped ? 'Hide cards' : 'Show cards'}
+                </button>
+              </span>
+              {showUnmapped && (
+                <span className="bw-cards">
+                  {unmapped.map((e) => (
+                    <button
+                      key={e.card}
+                      className="bw-card"
+                      onClick={() => setSelected(e.card)}
+                      title={`${e.presentDays} of ${officeDayCount} days present — open detail`}
+                    >
+                      {e.card}
+                      <span className="bw-card-days">{e.presentDays}d</span>
+                    </button>
+                  ))}
+                </span>
+              )}
+            </span>
           </div>
         )}
 

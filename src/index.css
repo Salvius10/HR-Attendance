@@ -115,6 +115,9 @@ h1, h2, h3 { margin: 0; }
 }
 .btn-primary:hover { background: #2a12e2; color: #fff; box-shadow: 0 6px 20px rgba(26, 0, 208, 0.38); }
 
+.btn-icon { display: inline-flex; align-items: center; gap: 7px; }
+.btn-icon svg { flex: none; }
+
 /* ═══ Upload screen ═════════════════════════════════════════════════ */
 .upload-screen {
   min-height: 100vh;
@@ -613,6 +616,44 @@ table.detail td.day-name { color: var(--ink-2); }
   font-size: 13.5px;
   margin-bottom: 18px;
 }
+
+.banner-warn { align-items: flex-start; }
+.banner-warn > svg { flex: none; margin-top: 1px; }
+
+.bw-body { display: flex; flex-direction: column; gap: 9px; }
+
+.bw-link {
+  margin-left: 7px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.bw-link:hover { opacity: 0.75; }
+
+.bw-cards { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.bw-card {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 3px 9px;
+  border: 1px solid #ffd9bd;
+  border-radius: 999px;
+  background: #fff;
+  color: #9a4a12;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.bw-card:hover { background: #fff1e6; border-color: #f5b98a; }
+
+.bw-card-days { font-size: 11.5px; opacity: 0.65; }
 
 /* ═══ Draft emails ══════════════════════════════════════════════════ */
 .de-open { display: inline-flex; align-items: center; gap: 8px; }
