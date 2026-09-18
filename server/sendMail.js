@@ -24,6 +24,12 @@ function readJsonBody(req) {
   })
 }
 
+/** Accepts an array or a "a@x.com, b@y.com" string; returns trimmed, non-empty addresses. */
+function normalizeAddresses(value) {
+  const parts = Array.isArray(value) ? value : String(value ?? '').split(/[,;]/)
+  return parts.map((a) => String(a ?? '').trim()).filter(Boolean)
+}
+
 export function sendJson(res, status, data) {
   res.statusCode = status
   res.setHeader('Content-Type', 'application/json')
@@ -37,12 +43,17 @@ async function handleSend(req, res) {
   } catch (err) {
     return sendJson(res, 400, { error: err.message })
   }
-  const { from, password, messages } = body ?? {}
+  const { from, password, cc, messages } = body ?? {}
   if (!from || !from.includes('@')) return sendJson(res, 400, { error: 'A valid from address is required.' })
   if (!password) return sendJson(res, 400, { error: 'The email password is required.' })
   if (!Array.isArray(messages) || messages.length === 0) {
     return sendJson(res, 400, { error: 'No messages to send.' })
   }
+
+  // One cc list for the whole batch; a message may add its own on top.
+  const ccAll = normalizeAddresses(cc)
+  const bad = ccAll.find((a) => !a.includes('@'))
+  if (bad) return sendJson(res, 400, { error: `"${bad}" is not a valid cc address.` })
 
   const transporter = nodemailer.createTransport({
     host: SMTP_HOST,
@@ -69,9 +80,17 @@ async function handleSend(req, res) {
       results.push({ to: m?.to ?? '', ok: false, error: 'Missing recipient address' })
       continue
     }
+    const ccFor = [...new Set([...ccAll, ...normalizeAddresses(m.cc)])]
+      .filter((a) => a.toLowerCase() !== String(m.to).toLowerCase())
     try {
-      await transporter.sendMail({ from, to: m.to, subject: m.subject ?? '', html: m.html ?? '' })
-      results.push({ to: m.to, ok: true })
+      await transporter.sendMail({
+        from,
+        to: m.to,
+        ...(ccFor.length > 0 ? { cc: ccFor } : {}),
+        subject: m.subject ?? '',
+        html: m.html ?? '',
+      })
+      results.push({ to: m.to, ok: true, cc: ccFor })
     } catch (err) {
       results.push({ to: m.to, ok: false, error: err.message })
     }

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { matchRecipients, templateVars, renderTemplate, TEMPLATE_VARIABLES } from '../lib/emails.js'
+import { matchRecipients, templateVars, renderTemplate, parseAddressList, TEMPLATE_VARIABLES } from '../lib/emails.js'
 import { parseEmployeeListFile } from '../lib/parseWorkbooks.js'
 import { MailIcon } from './UploadScreen.jsx'
 import { initials } from './Dashboard.jsx'
 
 const TEMPLATE_KEY = 'hr-attendance.emailTemplate.v1'
 const FROM_KEY = 'hr-attendance.fromEmail.v1'
+const CC_KEY = 'hr-attendance.cc.v1'
 
 const DEFAULT_SUBJECT = 'Office attendance for {month}'
 const DEFAULT_BODY =
@@ -42,9 +43,10 @@ function ToolbarButton({ label, title, onClick, children }) {
   )
 }
 
-export default function DraftEmails({ month, threshold, employeeList, onEmployeeListParsed, onClose }) {
+export default function DraftEmails({ month, neverSwiped = [], threshold, employeeList, onEmployeeListParsed, onClose }) {
   const [template, setTemplate] = useState(loadTemplate)
   const [fromEmail, setFromEmail] = useState(() => localStorage.getItem(FROM_KEY) ?? 'melvin.i@ganitinc.com')
+  const [cc, setCc] = useState(() => localStorage.getItem(CC_KEY) ?? '')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [excluded, setExcluded] = useState(() => new Set())
@@ -57,16 +59,23 @@ export default function DraftEmails({ month, threshold, employeeList, onEmployee
   const listInputRef = useRef(null)
 
   const below = useMemo(
-    () => month.employees.filter((e) => e.presentDays < threshold),
-    [month, threshold]
+    () => [...month.employees, ...neverSwiped].filter((e) => e.presentDays < threshold),
+    [month, neverSwiped, threshold]
   )
   const matched = useMemo(
     () => matchRecipients(below, employeeList?.people ?? null),
     [below, employeeList]
   )
-  const recipients = matched.filter((r) => r.email)
+  // One email per address, even if two cards resolve to the same person.
+  const recipients = useMemo(() => {
+    const byEmail = new Map()
+    for (const r of matched) if (r.email && !byEmail.has(r.email)) byEmail.set(r.email, r)
+    return [...byEmail.values()]
+  }, [matched])
   const unmatched = matched.filter((r) => !r.email)
   const selected = recipients.filter((r) => !excluded.has(r.email))
+  const ccList = useMemo(() => parseAddressList(cc), [cc])
+  const ccInvalid = cc.trim().length > 0 && ccList.length === 0
 
   // contentEditable is uncontrolled; seed it once
   useEffect(() => {
@@ -122,7 +131,7 @@ export default function DraftEmails({ month, threshold, employeeList, onEmployee
       }
     : null
 
-  const canSend = selected.length > 0 && fromEmail.includes('@') && password.length > 0
+  const canSend = selected.length > 0 && fromEmail.includes('@') && password.length > 0 && !ccInvalid
 
   const doSend = async () => {
     setPhase('sending')
@@ -139,7 +148,7 @@ export default function DraftEmails({ month, threshold, employeeList, onEmployee
       const res = await fetch('/api/send-emails', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ from: fromEmail, password, messages }),
+        body: JSON.stringify({ from: fromEmail, password, cc: ccList, messages }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? `Server error (${res.status})`)
@@ -163,7 +172,8 @@ export default function DraftEmails({ month, threshold, employeeList, onEmployee
           <div>
             <div className="nm">Draft emails</div>
             <div className="sub">
-              {below.length} below {threshold} days · {month.label}
+              {below.length} below {threshold} days
+              {neverSwiped.length > 0 ? ` (${neverSwiped.length} never swiped)` : ''} · {month.label}
             </div>
           </div>
           <button className="so-close" onClick={onClose} aria-label="Close" disabled={phase === 'sending'}>✕</button>
@@ -217,7 +227,9 @@ export default function DraftEmails({ month, threshold, employeeList, onEmployee
                           <span className="nm">{r.person?.name ?? r.employee.name}</span>
                           <span className="sub">{r.email}</span>
                         </span>
-                        <span className="de-r-days">{r.employee.presentDays} / {threshold} days</span>
+                        <span className={`de-r-days ${r.employee.noSwipes ? 'none' : ''}`}>
+                          {r.employee.noSwipes ? 'no swipes' : `${r.employee.presentDays} / ${threshold} days`}
+                        </span>
                         {res && (res.ok
                           ? <span className="badge-ok">✓ Sent</span>
                           : <span className="badge-low" title={res.error}>✗ Failed</span>)}
@@ -291,6 +303,9 @@ export default function DraftEmails({ month, threshold, employeeList, onEmployee
                 {showPreview && (preview ? (
                   <div className="de-preview">
                     <div className="de-p-meta"><b>To:</b> {preview.to}</div>
+                    {ccList.length > 0 && (
+                      <div className="de-p-meta"><b>Cc:</b> {ccList.join(', ')}</div>
+                    )}
                     <div className="de-p-meta"><b>Subject:</b> {preview.subject}</div>
                     <div className="de-p-body" dangerouslySetInnerHTML={{ __html: preview.html }} />
                   </div>
@@ -328,6 +343,24 @@ export default function DraftEmails({ month, threshold, employeeList, onEmployee
                     </span>
                   </label>
                 </div>
+                <label className="de-field de-cc">
+                  <span>Cc (optional)</span>
+                  <input
+                    className="de-input"
+                    type="text"
+                    placeholder="hr@ganitinc.com, manager@ganitinc.com"
+                    value={cc}
+                    onChange={(e) => { setCc(e.target.value); localStorage.setItem(CC_KEY, e.target.value) }}
+                    autoComplete="off"
+                  />
+                  <span className={`de-cc-note ${ccInvalid ? 'err' : ''}`}>
+                    {ccInvalid
+                      ? 'No valid address found — separate addresses with a comma.'
+                      : ccList.length > 0
+                        ? `${ccList.length} address(es) copied on every email.`
+                        : 'Separate multiple addresses with a comma. Copied on every email sent.'}
+                  </span>
+                </label>
                 <p className="hint">
                   Sends via smtp.office365.com from this machine. The password is used only for
                   this send and is never stored.
@@ -345,6 +378,7 @@ export default function DraftEmails({ month, threshold, employeeList, onEmployee
                     <>
                       <button className="btn btn-primary de-send" onClick={doSend}>
                         Yes, send {selected.length} email(s) now
+                        {ccList.length > 0 ? `, cc ${ccList.join(', ')}` : ''}
                       </button>
                       <button className="btn" onClick={() => setPhase('edit')}>Cancel</button>
                     </>

@@ -22,9 +22,12 @@ export function makeDemoData() {
 
   const events = []
   const mapping = []
+  const people = []
   for (let i = 0; i < 20; i++) {
     const card = 1001 + i
-    mapping.push({ card, name: `${FIRST[i]} ${LAST[i]}`, empId: `G${1500 + i}` })
+    const name = `${FIRST[i]} ${LAST[i]}`
+    mapping.push({ card, name, empId: `G${1500 + i}` })
+    people.push({ empId: `G${1500 + i}`, name, email: `${FIRST[i].toLowerCase()}.${LAST[i].toLowerCase()}@example.com` })
     const presentTarget = 3 + Math.floor(rand() * 19)
     const days = [...weekdays].sort(() => rand() - 0.5).slice(0, presentTarget)
     for (const d of days) {
@@ -40,6 +43,12 @@ export function makeDemoData() {
       }
     }
   }
+  // Three people in the directory who never swiped at all — absent the whole month.
+  for (let i = 0; i < 3; i++) {
+    const name = `${FIRST[17 - i]} ${LAST[4 + i]}`
+    people.push({ empId: `G${1600 + i}`, name, email: `${FIRST[17 - i].toLowerCase()}.${LAST[4 + i].toLowerCase()}@example.com` })
+  }
+
   events.sort((a, b) => a.ts - b.ts)
-  return { events, mapping }
+  return { events, mapping, people }
 }

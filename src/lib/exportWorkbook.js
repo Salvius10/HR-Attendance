@@ -29,7 +29,7 @@ function sheetFromRows(rows, colWidths, { autofilter = true } = {}) {
   return ws
 }
 
-function summarySheet(month, threshold) {
+function summarySheet(month, threshold, neverSwiped) {
   const dayKeys = month.officeDays
   const header = [
     'Employee', 'Employee ID', 'Card number', 'Card assigned?',
@@ -54,6 +54,22 @@ function summarySheet(month, threshold) {
       e.presentDays < threshold ? 'Low' : 'On track',
       presentDates(e),
       ...dayKeys.map((dk) => dayMark(e.days[dk])),
+    ])
+  }
+  // People from the employee list with no swipe at all — absent every office day.
+  for (const e of neverSwiped) {
+    rows.push([
+      e.name,
+      e.empId ?? '',
+      '',
+      'No swipe in this report',
+      0,
+      dayKeys.length,
+      0,
+      '—', '—', '—',
+      'No swipes',
+      '',
+      ...dayKeys.map(() => 'A'),
     ])
   }
   const widths = [28, 13, 13, 18, 12, 11, 12, 10, 10, 14, 10, 46, ...dayKeys.map(() => 7)]
@@ -117,7 +133,19 @@ function unassignedSheet(month) {
   return sheetFromRows(rows, widths, { autofilter: unmapped.length > 0 })
 }
 
-function aboutSheet(month, threshold) {
+function neverSwipedSheet(month, neverSwiped) {
+  const header = ['Employee', 'Employee ID', 'Email', 'Days present', 'Office days', 'Status']
+  const rows = [header]
+  for (const e of neverSwiped) {
+    rows.push([e.name, e.empId ?? '', e.email ?? '', 0, month.officeDays.length, 'Absent all month — no swipe at all'])
+  }
+  if (neverSwiped.length === 0) {
+    rows.push(['Everyone in the uploaded employee list swiped at least once this month.'])
+  }
+  return sheetFromRows(rows, [28, 13, 34, 12, 11, 36], { autofilter: neverSwiped.length > 0 })
+}
+
+function aboutSheet(month, threshold, neverSwiped) {
   const unmappedCount = month.employees.filter((e) => !e.mapped).length
   const rows = [
     ['Attendance export'],
@@ -128,11 +156,13 @@ function aboutSheet(month, threshold) {
     ['Office days', month.officeDays.length],
     ['Day threshold', threshold],
     ['Unassigned cards', unmappedCount],
+    ['Never swiped (from employee list)', neverSwiped.length],
     [],
     ['Sheet', 'What it holds'],
     ['Summary', 'One row per card — totals, averages, and a P / P* / A mark for every office day.'],
     ['Daily log', 'One row per card per day attended, with in/out times and hours.'],
     ['Unassigned cards', 'Only the cards with no employee assigned, with the days they attended.'],
+    ['Never swiped', 'People in the uploaded employee list with no swipe at all — absent every office day.'],
     [],
     ['Legend', ''],
     ['P', 'Present — swiped in and out'],
@@ -141,16 +171,18 @@ function aboutSheet(month, threshold) {
     [],
     ['Note', 'A day counts as present when the card swiped at least once: first swipe = in, last swipe = out.'],
     ['Note', 'Office days are the days on which at least one card swiped in this report.'],
+    ['Note', 'Never-swiped rows come from the employee list, not the swipe report. If a card is unassigned, its holder may appear there by mistake — assign the card and re-export.'],
   ]
   return sheetFromRows(rows, [20, 92], { autofilter: false })
 }
 
 /** Build and download an .xlsx for one month of the model. */
-export function exportMonthWorkbook(month, threshold) {
+export function exportMonthWorkbook(month, threshold, neverSwiped = []) {
   const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, summarySheet(month, threshold), 'Summary')
+  XLSX.utils.book_append_sheet(wb, summarySheet(month, threshold, neverSwiped), 'Summary')
   XLSX.utils.book_append_sheet(wb, dailyLogSheet(month), 'Daily log')
   XLSX.utils.book_append_sheet(wb, unassignedSheet(month), 'Unassigned cards')
-  XLSX.utils.book_append_sheet(wb, aboutSheet(month, threshold), 'About')
+  XLSX.utils.book_append_sheet(wb, neverSwipedSheet(month, neverSwiped), 'Never swiped')
+  XLSX.utils.book_append_sheet(wb, aboutSheet(month, threshold, neverSwiped), 'About')
   XLSX.writeFile(wb, `Attendance ${month.label}.xlsx`)
 }

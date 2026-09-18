@@ -434,6 +434,23 @@ table.emp tbody tr:last-child td { border-bottom: none; }
   padding: 3px 10px;
 }
 
+/* In the employee list, but no swipe at all this month */
+.badge-none {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #8a1d38;
+  background: #fdeef2;
+  border: 1px solid #f6ccd8;
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+.no-swipe-row .days-cell,
+.no-swipe-row .emp-cell .nm { color: #8a1d38; }
+.no-swipe-row .avatar { color: #8a1d38; background: #fdeef2; }
+
 .muted { color: var(--ink-3); }
 
 .empty-row { text-align: center; color: var(--ink-3); padding: 40px !important; cursor: default !important; }
@@ -729,6 +746,7 @@ table.detail td.day-name { color: var(--ink-2); }
 .de-r-name .nm { font-size: 13.5px; font-weight: 650; color: var(--ink); display: block; }
 .de-r-name .sub { font-size: 12px; color: var(--ink-3); display: block; overflow: hidden; text-overflow: ellipsis; }
 .de-r-days { font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.de-r-days.none { color: #8a1d38; font-weight: 700; }
 
 .de-empty { padding: 20px; text-align: center; color: var(--ink-3); font-size: 13px; }
 .de-unmatched {
@@ -826,6 +844,10 @@ table.detail td.day-name { color: var(--ink-2); }
   color: var(--ink-3);
   margin-bottom: 5px;
 }
+.de-cc { display: block; margin-bottom: 8px; }
+.de-cc-note { display: block; margin-top: 5px; font-size: 12px; color: var(--ink-3); }
+.de-cc-note.err { color: #b3400f; }
+
 .de-pass-wrap { position: relative; display: block; }
 .de-pass-wrap .de-input { padding-right: 52px; }
 .de-eye {

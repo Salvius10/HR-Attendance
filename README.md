@@ -24,10 +24,18 @@ The dashboard shows one row per employee with a month-at-a-glance strip, days pr
 average in/out times, and a **below-threshold filter** (default 12 days, adjustable).
 Clicking a row opens the full day-by-day log with an hours-per-day chart.
 
+Once the employee directory is uploaded, the dashboard also compares it against the
+swipe report: anyone in the directory with **no swipe at all** that month never came in
+on a single day, so they appear as extra rows with `0` days present and a **No swipes**
+badge, counted by the *No swipe at all* tile and the *No swipes* filter chip. They are
+included in the below-threshold count and in the drafted emails. A person behind an
+unassigned card can land here by mistake — assign the card and they move to a real row.
+
 ## Draft emails
 
 **Draft emails** on the dashboard opens a panel listing every below-threshold employee
-matched to the directory (by Employee ID, falling back to name). Untick anyone you want
+(including those who never swiped at all) matched to the directory (by Employee ID,
+falling back to name). Untick anyone you want
 to skip, then edit one shared template — subject and rich-text body — with dynamic
 variables that are filled in per recipient: `{name}`, `{firstName}`, `{daysPresent}`,
 `{threshold}`, `{shortfall}`, `{month}`. The template is remembered between sessions
@@ -38,17 +46,21 @@ that relays via **Microsoft 365 SMTP** (`smtp.office365.com:587`). The same hand
 mounted by the Vite dev/preview server (`server/mailPlugin.js`) and by the standalone
 server in the packaged build (`server/server.js`), so sending behaves identically in
 both. Enter the from-address password (or app password) in the panel — it is used only
-for that send and never stored. Per-recipient success/failure is shown after sending.
+for that send and never stored. The optional **Cc** field takes one or more addresses
+(comma-separated) that are copied on every email sent; it is remembered between sessions
+and a recipient is never cc'd on their own email. Per-recipient success/failure is shown after sending.
 Note: the mailbox needs SMTP AUTH enabled in Microsoft 365 for this to work.
 
 ## Excel export
 
 **Download Excel** in the top bar exports the month being viewed as
-`Attendance <Month Year>.xlsx` (`src/lib/exportWorkbook.js`), with four sheets:
+`Attendance <Month Year>.xlsx` (`src/lib/exportWorkbook.js`), with five sheets:
 **Summary** (one row per card — totals, averages, and a `P` / `P*` / `A` mark for every
 office day), **Daily log** (one row per card per day attended, with in/out and hours),
-**Unassigned cards** (only the cards with no employee, and the days they attended), and
-**About** (legend and the present-day rule). Unassigned cards are labelled
+**Unassigned cards** (only the cards with no employee, and the days they attended),
+**Never swiped** (directory people with no swipe at all, who also appear in Summary with
+`A` on every day and a `No swipes` status), and **About** (legend and the present-day
+rule). Unassigned cards are labelled
 `UNASSIGNED — Card 1234` throughout and the `Card assigned?` column is filterable.
 
 ## Packaging for HR machines

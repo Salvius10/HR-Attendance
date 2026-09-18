@@ -2,8 +2,14 @@ import { useMemo, useRef, useState } from 'react'
 import { formatMinutesAsTime, formatDuration, formatTime, dayKeyLabel } from '../lib/attendance.js'
 import { parseMappingFile } from '../lib/parseWorkbooks.js'
 import { exportMonthWorkbook } from '../lib/exportWorkbook.js'
+import { findNeverSwiped } from '../lib/emails.js'
 import EmployeeDetail from './EmployeeDetail.jsx'
 import DraftEmails from './DraftEmails.jsx'
+
+/** Stable row id — swipe rows are keyed by card, never-swiped rows by email. */
+export function rowId(e) {
+  return e.card != null ? `card:${e.card}` : `mail:${e.email}`
+}
 
 export function initials(name) {
   const parts = name.trim().split(/\s+/)
@@ -43,19 +49,31 @@ export default function Dashboard({ model, mapping, employeeList, threshold, set
   const [selected, setSelected] = useState(() => {
     if (!import.meta.env.DEV) return null
     const open = new URLSearchParams(location.search).get('open')
-    return open ? Number(open) : null
+    return open ? `card:${open}` : null
   })
   const [mapError, setMapError] = useState(null)
   const [showEmails, setShowEmails] = useState(false)
   const [showUnmapped, setShowUnmapped] = useState(false)
+  const [noSwipeOnly, setNoSwipeOnly] = useState(false)
   const mapInputRef = useRef(null)
 
   const month = model.months.find((m) => m.key === monthKey) ?? model.months[0]
   const officeDayCount = month.officeDays.length
 
+  // Directory people with no swipe at all this month — absent every day, so they
+  // sit alongside the swipe rows with zero present days.
+  const neverSwiped = useMemo(
+    () => findNeverSwiped(month.employees, employeeList?.people ?? null),
+    [month, employeeList]
+  )
+  const allEmployees = useMemo(
+    () => [...month.employees, ...neverSwiped],
+    [month, neverSwiped]
+  )
+
   const belowCount = useMemo(
-    () => month.employees.filter((e) => e.presentDays < threshold).length,
-    [month, threshold]
+    () => allEmployees.filter((e) => e.presentDays < threshold).length,
+    [allEmployees, threshold]
   )
 
   const avgDays = useMemo(() => {
@@ -65,23 +83,25 @@ export default function Dashboard({ model, mapping, employeeList, threshold, set
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase()
-    let list = month.employees
+    let list = allEmployees
     if (q) {
       list = list.filter(
         (e) =>
           e.name.toLowerCase().includes(q) ||
           (e.empId && e.empId.toLowerCase().includes(q)) ||
-          String(e.card).includes(q)
+          (e.email && e.email.toLowerCase().includes(q)) ||
+          (e.card != null && String(e.card).includes(q))
       )
     }
     if (lowOnly) list = list.filter((e) => e.presentDays < threshold)
+    if (noSwipeOnly) list = list.filter((e) => e.noSwipes)
     const sorted = [...list]
     sorted.sort((a, b) => {
       if (sort.by === 'days') return (a.presentDays - b.presentDays) * sort.dir
       return a.name.localeCompare(b.name) * sort.dir
     })
     return sorted
-  }, [month, query, lowOnly, threshold, sort])
+  }, [allEmployees, query, lowOnly, noSwipeOnly, threshold, sort])
 
   const toggleSort = (by) =>
     setSort((s) => (s.by === by ? { by, dir: -s.dir } : { by, dir: by === 'days' ? 1 : 1 }))
@@ -97,7 +117,7 @@ export default function Dashboard({ model, mapping, employeeList, threshold, set
     }
   }
 
-  const selectedEmp = selected ? month.employees.find((e) => e.card === selected) : null
+  const selectedEmp = selected ? allEmployees.find((e) => rowId(e) === selected) ?? null : null
 
   return (
     <>
@@ -124,7 +144,7 @@ export default function Dashboard({ model, mapping, employeeList, threshold, set
         </button>
         <button
           className="btn btn-icon"
-          onClick={() => exportMonthWorkbook(month, threshold)}
+          onClick={() => exportMonthWorkbook(month, threshold, neverSwiped)}
           title={`Download ${month.label} as an Excel workbook`}
         >
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -177,7 +197,7 @@ export default function Dashboard({ model, mapping, employeeList, threshold, set
                     <button
                       key={e.card}
                       className="bw-card"
-                      onClick={() => setSelected(e.card)}
+                      onClick={() => setSelected(rowId(e))}
                       title={`${e.presentDays} of ${officeDayCount} days present — open detail`}
                     >
                       {e.card}
@@ -209,8 +229,19 @@ export default function Dashboard({ model, mapping, employeeList, threshold, set
           <div className="tile alert">
             <div className="t-label">Below {threshold} days</div>
             <div className="t-value">{belowCount}</div>
-            <div className="t-sub">of {month.employees.length} employees</div>
+            <div className="t-sub">of {allEmployees.length} employees</div>
           </div>
+          {employeeList && (
+            <div className={`tile ${neverSwiped.length > 0 ? 'alert' : ''}`}>
+              <div className="t-label">No swipe at all</div>
+              <div className="t-value">{neverSwiped.length}</div>
+              <div className="t-sub">
+                {neverSwiped.length === 0
+                  ? `everyone in the list swiped in ${month.label}`
+                  : `in the employee list, absent all of ${month.label}`}
+              </div>
+            </div>
+          )}
         </section>
 
         <div className="controls">
@@ -225,6 +256,15 @@ export default function Dashboard({ model, mapping, employeeList, threshold, set
           <button className={`filter-chip ${lowOnly ? 'active' : ''}`} onClick={() => setLowOnly(!lowOnly)}>
             Below {threshold} days <span className="count">{belowCount}</span>
           </button>
+          {neverSwiped.length > 0 && (
+            <button
+              className={`filter-chip ${noSwipeOnly ? 'active' : ''}`}
+              onClick={() => setNoSwipeOnly(!noSwipeOnly)}
+              title="Employees in the uploaded list with no swipe at all this month"
+            >
+              No swipes <span className="count">{neverSwiped.length}</span>
+            </button>
+          )}
           <button className="btn de-open" onClick={() => setShowEmails(true)}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-10 6L2 7" />
@@ -261,17 +301,17 @@ export default function Dashboard({ model, mapping, employeeList, threshold, set
                 <tr><td className="empty-row" colSpan={7}>No employees match.</td></tr>
               )}
               {rows.map((e) => (
-                <tr key={e.card} onClick={() => setSelected(e.card)}>
+                <tr key={rowId(e)} className={e.noSwipes ? 'no-swipe-row' : ''} onClick={() => setSelected(rowId(e))}>
                   <td>
                     <span className="emp-cell">
                       <span className={`avatar ${e.mapped ? '' : 'unmapped'}`}>{initials(e.name)}</span>
                       <span>
                         <div className="nm">{e.name}</div>
-                        {e.empId && <div className="sub">{e.empId}</div>}
+                        {(e.empId || e.email) && <div className="sub">{e.empId ?? e.email}</div>}
                       </span>
                     </span>
                   </td>
-                  <td className="muted">{e.card}</td>
+                  <td className="muted">{e.card ?? '—'}</td>
                   <td><DayStrip officeDays={month.officeDays} days={e.days} /></td>
                   <td className="days-cell">
                     {e.presentDays} <span className="of">/ {officeDayCount}</span>
@@ -279,9 +319,11 @@ export default function Dashboard({ model, mapping, employeeList, threshold, set
                   <td>{formatMinutesAsTime(e.avgInMin)}</td>
                   <td>{formatMinutesAsTime(e.avgOutMin)}</td>
                   <td>
-                    {e.presentDays < threshold
-                      ? <span className="badge-low">● Low</span>
-                      : <span className="badge-ok">● On track</span>}
+                    {e.noSwipes
+                      ? <span className="badge-none" title="In the employee list but never swiped this month">● No swipes</span>
+                      : e.presentDays < threshold
+                        ? <span className="badge-low">● Low</span>
+                        : <span className="badge-ok">● On track</span>}
                   </td>
                 </tr>
               ))}
@@ -292,12 +334,20 @@ export default function Dashboard({ model, mapping, employeeList, threshold, set
         <p className="rule-note">
           A day counts as present when the card swiped at least once — <b>first swipe = in</b>,{' '}
           <b>last swipe = out</b>. Days with a single swipe show no out-time.
+          {employeeList && (
+            <>
+              {' '}Rows marked <b>No swipes</b> come from the employee list and have no swipe at
+              all in {month.label} — absent every day
+              {unmapped.length > 0 ? ', unless they are behind one of the unassigned cards above' : ''}.
+            </>
+          )}
         </p>
       </main>
 
       {showEmails && (
         <DraftEmails
           month={month}
+          neverSwiped={neverSwiped}
           threshold={threshold}
           employeeList={employeeList}
           onEmployeeListParsed={onEmployeeListParsed}

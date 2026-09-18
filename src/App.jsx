@@ -34,9 +34,10 @@ export default function App() {
     if (!import.meta.env.DEV) return
     if (!new URLSearchParams(location.search).has('demo')) return
     import('./lib/demoData.js').then(({ makeDemoData }) => {
-      const { events, mapping: entries } = makeDemoData()
+      const { events, mapping: entries, people } = makeDemoData()
       setSwipeData({ events, fileName: 'demo-swipes.xlsx' })
       setMapping({ entries, fileName: 'demo-mapping.xlsx', savedAt: Date.now() })
+      setEmployeeList({ people, fileName: 'demo-employees.xlsx', savedAt: Date.now() })
       setShowUpload(false)
     })
   }, [])

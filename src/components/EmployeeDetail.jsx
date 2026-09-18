@@ -113,7 +113,9 @@ export default function EmployeeDetail({ employee, month, threshold, onClose }) 
           <div>
             <div className="nm">{employee.name}</div>
             <div className="sub">
-              {employee.empId ? `${employee.empId} · ` : ''}Card {employee.card} · {month.label}
+              {employee.empId ? `${employee.empId} · ` : ''}
+              {employee.card != null ? `Card ${employee.card}` : 'No swipes — not in the report'}
+              {' · '}{month.label}
             </div>
           </div>
           <button className="so-close" onClick={onClose} aria-label="Close">✕</button>
